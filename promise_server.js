@@ -13,18 +13,46 @@ exports.makeCompatible = function (Promise, Fiber) {
   Promise.prototype.then = function (onResolved, onRejected) {
     var P = this.constructor;
 
-    if (typeof P.Fiber === "function") {
-      var fiber = P.Fiber.current;
-      var dynamics = cloneFiberOwnProperties(fiber);
-
-      return es6PromiseThen.call(
-        this,
-        wrapCallback(onResolved, P, dynamics),
-        wrapCallback(onRejected, P, dynamics)
-      );
+    if (typeof P.Fiber === "function" && P.Fiber.current) {
+      return this.thenInFiber(onResolved, onRejected);
+    } else {
+      return es6PromiseThen.call(this, onResolved, onRejected);
     }
+  };
 
-    return es6PromiseThen.call(this, onResolved, onRejected);
+  Promise.prototype.thenInFiber = function (onResolved, onRejected) {
+    var P = this.constructor;
+    var fiber = P.Fiber.current;
+    var dynamics = cloneFiberOwnProperties(fiber);
+
+    return es6PromiseThen.call(
+      this,
+      wrapCallback(onResolved, P, dynamics),
+      wrapCallback(onRejected, P, dynamics)
+    );
+  };
+
+  Promise.prototype.thenNotInFiber = function (onResolved, onRejected) {
+    var P = this.constructor;
+    var fiber = P.Fiber.current;
+
+    if (typeof P.Fiber === "function" && P.Fiber.current) {
+      // We're in a fiber currently. It's not enough to simply call
+      // es6PromiseThen here, because sometimes the promise implementation
+      // calls back to `.then()` internally. If we're still in the fiber at
+      // that point, then the callbacks will end up in a fiber. To avoid this,
+      // we have to schedule our call to the underlying `.then()` to itself run
+      // *outside* any fiber. We can do this with nextTick().
+      var self = this;
+      return new P(function (resolve, reject) {
+        process.nextTick(function () {
+          self.then(onResolved, onRejected).then(resolve, reject);
+        });
+      });
+    } else {
+      // Oh good, we're not in a fiber.
+      return es6PromiseThen.call(this, onResolved, onRejected);
+    }
   };
 
   Promise.awaitAll = function (args) {

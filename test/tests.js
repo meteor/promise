@@ -132,7 +132,22 @@ describe("Promise.async", function () {
 });
 
 describe("Promise.then callbacks", function () {
-  it("should always run in a fiber", Promise.async(function () {
+  it("should not run in a fiber if the caller didn't", function () {
+    function checkCallbackNotFiber() {
+      assert.strictEqual(undefined, Fiber.current);
+    }
+
+    return Promise.resolve("result").then(function (result) {
+      assert.strictEqual("result", result);
+      checkCallbackNotFiber();
+      throw new Error("friendly exception");
+    }).catch(function (error) {
+      assert.strictEqual(error.message, "friendly exception");
+      checkCallbackNotFiber();
+    });
+  });
+
+  it("should run in a fiber if the caller did", Promise.async(function () {
     var parentFiber = Fiber.current;
     assert.ok(parentFiber instanceof Fiber);
 
@@ -153,6 +168,72 @@ describe("Promise.then callbacks", function () {
       checkCallbackFiber();
     });
   }));
+});
+
+describe("Promise.thenInFiber callbacks", function () {
+  it("should run in a fiber even if the caller didn't", function () {
+    function checkCallbackFiber() {
+      assert.ok(Fiber.current instanceof Fiber);
+      assert.strictEqual(undefined, Fiber.current._meteorDynamics);
+    }
+
+    return Promise.resolve("result").thenInFiber(function (result) {
+      assert.strictEqual("result", result);
+      checkCallbackFiber();
+      throw new Error("friendly exception");
+    }).thenInFiber(function() {}, function (error) {
+      assert.strictEqual(error.message, "friendly exception");
+      checkCallbackFiber();
+    });
+  });
+
+  it("should run in a fiber if the caller did", Promise.async(function () {
+    function checkCallbackFiber() {
+      assert.ok(Fiber.current instanceof Fiber);
+      assert.strictEqual(undefined, Fiber.current._meteorDynamics);
+    }
+
+    return Promise.resolve("result").thenInFiber(function (result) {
+      assert.strictEqual("result", result);
+      checkCallbackFiber();
+      throw new Error("friendly exception");
+    }).thenInFiber(function() {}, function (error) {
+      assert.strictEqual(error.message, "friendly exception");
+      checkCallbackFiber();
+    });
+  }));
+});
+
+describe("Promise.thenNotInFiber callbacks", function () {
+  it("should not run in a fiber even if the caller did", Promise.async(function () {
+    function checkCallbackNotFiber() {
+      assert.strictEqual(undefined, Fiber.current);
+    }
+
+    return Promise.resolve("result").thenNotInFiber(function (result) {
+      assert.strictEqual("result", result);
+      checkCallbackNotFiber();
+      throw new Error("friendly exception");
+    }).thenNotInFiber(function() {}, function (error) {
+      assert.strictEqual(error.message, "friendly exception");
+      checkCallbackNotFiber();
+    });
+  }));
+
+  it("should not run in a fiber if the caller didn't", function () {
+    function checkCallbackNotFiber() {
+      assert.strictEqual(undefined, Fiber.current);
+    }
+
+    return Promise.resolve("result").thenNotInFiber(function (result) {
+      assert.strictEqual("result", result);
+      checkCallbackNotFiber();
+      throw new Error("friendly exception");
+    }).thenNotInFiber(function() {}, function (error) {
+      assert.strictEqual(error.message, "friendly exception");
+      checkCallbackNotFiber();
+    });
+  });
 });
 
 describe("FiberPool", function () {
