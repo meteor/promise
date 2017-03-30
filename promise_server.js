@@ -13,7 +13,7 @@ exports.makeCompatible = function (Promise, Fiber) {
   Promise.prototype.then = function (onResolved, onRejected) {
     var P = this.constructor;
 
-    if (typeof P.Fiber === "function") {
+    if (typeof P.Fiber === "function" && !this._meteorPromiseAlreadyWrapped) {
       var fiber = P.Fiber.current;
       var dynamics = cloneFiberOwnProperties(fiber);
 
