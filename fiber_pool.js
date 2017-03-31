@@ -85,7 +85,6 @@ function FiberPool(targetFiberCount) {
       entry.resolve = resolve;
       entry.reject = reject;
     });
-    promise._meteorPromiseAlreadyWrapped = true;
 
     fiber.run(entry);
 

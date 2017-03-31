@@ -8,19 +8,20 @@ exports.makeCompatible = function (Promise, Fiber) {
     Promise.Fiber = Fiber;
   }
 
+  if (es6PromiseThen.name === "meteorPromise_then") {
+    return;  // Already compatible.
+  }
+
   // Replace Promise.prototype.then with a wrapper that ensures the
   // onResolved and onRejected callbacks always run in a Fiber.
-  Promise.prototype.then = function (onResolved, onRejected) {
-    var P = this.constructor;
+  Promise.prototype.then = function meteorPromise_then(onResolved, onRejected) {
+    var Promise = this.constructor;
 
-    if (typeof P.Fiber === "function" && !this._meteorPromiseAlreadyWrapped) {
-      var fiber = P.Fiber.current;
-      var dynamics = cloneFiberOwnProperties(fiber);
-
+    if (typeof Promise.Fiber === "function" && !this._meteorPromiseAlreadyWrapped) {
       return es6PromiseThen.call(
         this,
-        wrapCallback(onResolved, P, dynamics),
-        wrapCallback(onRejected, P, dynamics)
+        wrapCallback(onResolved, Promise),
+        wrapCallback(onRejected, Promise)
       );
     }
 
@@ -120,7 +121,7 @@ exports.makeCompatible = function (Promise, Fiber) {
   };
 };
 
-function wrapCallback(callback, Promise, dynamics) {
+function wrapCallback(callback, Promise) {
   if (! callback) {
     return callback;
   }
@@ -131,12 +132,15 @@ function wrapCallback(callback, Promise, dynamics) {
     return callback;
   }
 
+  var dynamics = cloneFiberOwnProperties(Promise.Fiber.current);
   var result = function (arg) {
-    return fiberPool.run({
+    var promise = fiberPool.run({
       callback: callback,
       args: [arg], // Avoid dealing with arguments objects.
       dynamics: dynamics
     }, Promise);
+    promise._meteorPromiseAlreadyWrapped = true;
+    return promise;
   };
 
   // Flag this callback as not wanting to be called in a fiber because it is
@@ -144,6 +148,14 @@ function wrapCallback(callback, Promise, dynamics) {
   result._meteorPromiseAlreadyWrapped = true;
 
   return result;
+}
+
+var funToStr = Function.prototype.toString;
+var nativeNeedle = "{ [native code] }";
+
+function isNativeFunction(value) {
+  return typeof value === "function" &&
+    funToStr.call(value).endsWith(nativeNeedle);
 }
 
 function cloneFiberOwnProperties(fiber) {
