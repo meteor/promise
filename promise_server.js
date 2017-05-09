@@ -32,11 +32,11 @@ exports.makeCompatible = function (Promise, Fiber) {
   Promise.prototype.then = meteorPromiseThen;
 
   Promise.awaitAll = function (args) {
-    return awaitPromise(this.all(args));
+    return awaitPromise(Promise.all(args));
   };
 
   Promise.await = function (arg) {
-    return awaitPromise(this.resolve(arg));
+    return awaitPromise(Promise.resolve(arg));
   };
 
   Promise.prototype.await = function () {
